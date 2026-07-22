@@ -1,6 +1,7 @@
 // ============================================================
-// PC Center — LocalStorage Data Store
+// PC Center — LocalStorage Data Store (Encrypted)
 // ============================================================
+import CryptoJS from "crypto-js";
 import type {
   User, Product, Category, Order, Cart, Review,
 } from "./schema";
@@ -8,6 +9,8 @@ import {
   seedUsers, seedProducts, seedCategories, seedOrders,
   seedReviews,
 } from "./seed";
+
+const SECRET_KEY = "PC_CENTER_SECURE_KEY_2026"; // Secret key for AES encryption
 
 const STORAGE_KEYS = {
   users: "pc_center_users",
@@ -26,20 +29,33 @@ function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
 
-// Generic CRUD on LocalStorage
+// Generic CRUD on LocalStorage (With Encryption)
 function getCollection<T>(key: string): T[] {
   if (!isBrowser()) return [];
   try {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
-  } catch {
+    const encryptedData = localStorage.getItem(key);
+    if (!encryptedData) return [];
+    
+    // Decrypt data
+    const bytes = CryptoJS.AES.decrypt(encryptedData, SECRET_KEY);
+    const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+    
+    // Parse to JSON
+    return JSON.parse(decryptedText);
+  } catch (error) {
+    // If decryption fails (e.g. old unencrypted data), clear it and return empty
+    console.warn(`Failed to decrypt data for ${key}, resetting collection.`);
+    localStorage.removeItem(key);
     return [];
   }
 }
 
 function setCollection<T>(key: string, data: T[]): void {
   if (!isBrowser()) return;
-  localStorage.setItem(key, JSON.stringify(data));
+  
+  // Encrypt JSON string
+  const encryptedText = CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
+  localStorage.setItem(key, encryptedText);
 }
 
 // Initialize seed data if not already done
